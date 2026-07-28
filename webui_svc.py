@@ -146,12 +146,15 @@ class AppState:
 		)
 
 		self.svc_config = load_config("soulxsinger/config/soulxsinger.yaml")
-		self.svc_model = build_svc_model(
-			model_path="pretrained_models/SoulX-Singer/model-svc.pt",
-			config=self.svc_config,
-			device=self.device,
-			use_fp16=self.use_fp16,
-		)
+		from api.model import LazyModel
+		def _load_svc():
+			return build_svc_model(
+				model_path="pretrained_models/SoulX-Singer/model-svc.pt",
+				config=self.svc_config,
+				device=self.device,
+				use_fp16=self.use_fp16,
+			)
+		self.svc_model = LazyModel(_load_svc)
 
 	def run_preprocess(self, audio_path: Path, save_path: Path, vocal_sep: bool) -> tuple[bool, str, Path | None, Path | None]:
 		try:
@@ -211,7 +214,8 @@ class AppState:
 			args.cfg = float(cfg)
 			args.use_fp16 = self.use_fp16
 
-			svc_process(args, self.svc_config, self.svc_model)
+			model = self.svc_model.get()
+			svc_process(args, self.svc_config, model)
 
 			generated = save_dir / "generated.wav"
 			if not generated.exists():
@@ -253,7 +257,15 @@ class AppState:
 			return False, f"svc inference failed: {e}", None
 
 
-APP_STATE = AppState(use_fp16="--fp16" in sys.argv)
+_USE_FP16 = "--fp16" in sys.argv
+_APP_STATE: AppState | None = None
+
+
+def get_app_state() -> AppState:
+	global _APP_STATE
+	if _APP_STATE is None:
+		_APP_STATE = AppState(use_fp16=_USE_FP16)
+	return _APP_STATE
 
 
 def _start_svc(prompt_audio, target_audio, prompt_vocal_sep, target_vocal_sep, auto_shift, auto_mix_acc, pitch_shift, n_step, cfg, seed):
@@ -271,7 +283,9 @@ def _start_svc(prompt_audio, target_audio, prompt_vocal_sep, target_vocal_sep, a
 		_trim_and_save_audio(prompt_audio, prompt_raw, PROMPT_MAX_SEC_DEFAULT)
 		_trim_and_save_audio(target_audio, target_raw, TARGET_MAX_SEC_DEFAULT)
 
-		prompt_ok, prompt_msg, prompt_wav, prompt_f0 = APP_STATE.run_preprocess(
+		app_state = get_app_state()
+
+		prompt_ok, prompt_msg, prompt_wav, prompt_f0 = app_state.run_preprocess(
 			audio_path=prompt_raw,
 			save_path=session_base / "transcriptions" / "prompt",
 			vocal_sep=bool(prompt_vocal_sep),
@@ -280,7 +294,7 @@ def _start_svc(prompt_audio, target_audio, prompt_vocal_sep, target_vocal_sep, a
 			print(prompt_msg, file=sys.stderr, flush=True)
 			return None
 
-		target_ok, target_msg, target_wav, target_f0 = APP_STATE.run_preprocess(
+		target_ok, target_msg, target_wav, target_f0 = app_state.run_preprocess(
 			audio_path=target_raw,
 			save_path=session_base / "transcriptions" / "target",
 			vocal_sep=bool(target_vocal_sep),
@@ -289,7 +303,7 @@ def _start_svc(prompt_audio, target_audio, prompt_vocal_sep, target_vocal_sep, a
 			print(target_msg, file=sys.stderr, flush=True)
 			return None
 
-		ok, msg, generated = APP_STATE.run_svc(
+		ok, msg, generated = app_state.run_svc(
 			prompt_wav_path=prompt_wav,
 			target_wav_path=target_wav,
 			prompt_f0_path=prompt_f0,
@@ -311,8 +325,7 @@ def _start_svc(prompt_audio, target_audio, prompt_vocal_sep, target_vocal_sep, a
 		return None
 
 
-def render_interface() -> gr.Blocks:
-	with gr.Blocks(title="SoulX-Singer-SVC Demo", theme=gr.themes.Default()) as page:
+def build_interface() -> None:
 		gr.HTML(
             '<div style="'
             'text-align: center; '
@@ -448,6 +461,9 @@ def render_interface() -> gr.Blocks:
 			],
 		)
 
+def render_interface() -> gr.Blocks:
+	with gr.Blocks(title="SoulX-Singer-SVC Demo", theme=gr.themes.Default()) as page:
+		build_interface()
 	return page
 
 

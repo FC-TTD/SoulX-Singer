@@ -285,12 +285,15 @@ class AppState:
         )
         config = load_config("soulxsinger/config/soulxsinger.yaml")
         self.svs_config = config
-        self.svs_model = build_svs_model(
-            model_path="pretrained_models/SoulX-Singer/model.pt",
-            config=config,
-            device=self.device,
-            use_fp16=self.use_fp16,
-        )
+        from api.model import LazyModel
+        def _load_svs():
+            return build_svs_model(
+                model_path="pretrained_models/SoulX-Singer/model.pt",
+                config=config,
+                device=self.device,
+                use_fp16=self.use_fp16,
+            )
+        self.svs_model = LazyModel(_load_svs)
         self.phoneset_path = "soulxsinger/utils/phoneme/phone_set.json"
         self.midi_parser = MidiParser(
             rmvpe_model_path="pretrained_models/SoulX-Singer-Preprocess/rmvpe/rmvpe.pt",
@@ -349,7 +352,8 @@ class AppState:
         args.control = control
         args.use_fp16 = self.use_fp16
         try:
-            svs_process(args, self.svs_config, self.svs_model)
+            model = self.svs_model.get()
+            svs_process(args, self.svs_config, model)
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -395,7 +399,15 @@ class AppState:
         return True, "svs inference done", merged
 
 
-APP_STATE = AppState(use_fp16="--fp16" in sys.argv)
+_USE_FP16 = "--fp16" in sys.argv
+_APP_STATE: AppState | None = None
+
+
+def get_app_state() -> AppState:
+    global _APP_STATE
+    if _APP_STATE is None:
+        _APP_STATE = AppState(use_fp16=_USE_FP16)
+    return _APP_STATE
 
 def _edit_metadata(
     meta,
@@ -413,7 +425,7 @@ def _edit_metadata(
         if not meta:
             meta = str(Path(midi).with_name("metadata.json"))
 
-        APP_STATE.midi_parser.midi2meta(midi, meta, audio, language=language)
+        get_app_state().midi_parser.midi2meta(midi, meta, audio, language=language)
         return meta
     except Exception:
         _print_exception("_edit_metadata")
@@ -443,7 +455,7 @@ def _transcribe_prompt(
             transfer_prompt_path = audio_dir / "prompt.wav"
             _trim_and_save_audio(prompt_audio, transfer_prompt_path, prompt_max_sec)
 
-            prompt_ok, prompt_msg = APP_STATE.run_preprocess(
+            prompt_ok, prompt_msg = get_app_state().run_preprocess(
                 audio_path=transfer_prompt_path,
                 save_path=session_base / "transcriptions" / "prompt",
                 vocal_sep=_yes_no_to_bool(prompt_vocal_sep, default=False),
@@ -458,7 +470,7 @@ def _transcribe_prompt(
             shutil.copy2(prompt_meta_resolved, prompt_meta_path)
 
         if prompt_meta_path.exists():
-            APP_STATE.midi_parser.meta2midi(prompt_meta_path, prompt_midi_path)
+            get_app_state().midi_parser.meta2midi(prompt_meta_path, prompt_midi_path)
 
         prompt_meta_file = str(prompt_meta_path) if prompt_meta_path.exists() else None
         prompt_midi_file = str(prompt_midi_path) if prompt_midi_path.exists() else None
@@ -492,7 +504,7 @@ def _transcribe_target(
             transfer_target_path = audio_dir / "target.wav"
             _trim_and_save_audio(target_audio, transfer_target_path, target_max_sec)
 
-            target_ok, target_msg = APP_STATE.run_preprocess(
+            target_ok, target_msg = get_app_state().run_preprocess(
                 audio_path=transfer_target_path,
                 save_path=session_base / "transcriptions" / "target",
                 vocal_sep=_yes_no_to_bool(target_vocal_sep, default=True),
@@ -507,7 +519,7 @@ def _transcribe_target(
             shutil.copy2(target_meta_resolved, target_meta_path)
 
         if target_meta_path.exists():
-            APP_STATE.midi_parser.meta2midi(target_meta_path, target_midi_path)
+            get_app_state().midi_parser.meta2midi(target_meta_path, target_midi_path)
 
         target_meta_file = str(target_meta_path) if target_meta_path.exists() else None
         target_midi_file = str(target_midi_path) if target_midi_path.exists() else None
@@ -548,7 +560,7 @@ def _run_synthesis(
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
-        ok, msg, merged = APP_STATE.run_svs_from_paths(
+        ok, msg, merged = get_app_state().run_svs_from_paths(
             prompt_wav_path=prompt_wav_path,
             prompt_metadata_path=prompt_meta_path,
             target_metadata_path=target_meta_path,
@@ -574,8 +586,7 @@ def _instruction_md() -> str:
     ])
 
 
-def render_interface() -> gr.Blocks:
-    with gr.Blocks(title="SoulX-Singer 歌声合成Demo", theme=gr.themes.Default()) as page:
+def build_interface() -> None:
         gr.HTML(
             '<div style="'
             'text-align: center; '
@@ -875,6 +886,9 @@ def render_interface() -> gr.Blocks:
             outputs=[output_audio],
         )
 
+def render_interface() -> gr.Blocks:
+    with gr.Blocks(title="SoulX-Singer 歌声合成Demo", theme=gr.themes.Default()) as page:
+        build_interface()
     return page
 
 

@@ -171,6 +171,28 @@ For SVC WebUI (audio-to-audio conversion):
 python webui_svc.py
 ```
 
+#### Fusion API and Docker
+
+The `ttd` branch also exposes SVS and SVC through a combined FastAPI and
+Gradio application:
+
+```sh
+uvicorn api.app:app --host 0.0.0.0 --port 30931
+```
+
+API endpoints are available at `/api/tts` and `/api/svc`; readiness can be
+checked at `/health`. The first inference request loads the corresponding model.
+
+For a CUDA-enabled Docker host with the NVIDIA Container Toolkit installed:
+
+```sh
+docker compose -f docker/compose.yaml up --build
+```
+
+Model weights and Hugging Face downloads are kept in named volumes. Override
+`HF_ENDPOINT`, `CUDA_VISIBLE_DEVICES`, or `NVIDIA_VISIBLE_DEVICES` through the
+environment when needed.
+
 
 
 ## 🚧 Roadmap

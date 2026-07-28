@@ -1,0 +1,16 @@
+.git
+.venv*
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+outputs
+pretrained_models
+*.ipynb
+AGENTS.md
+ansible
+deploy.sh
+ttd_*report.md

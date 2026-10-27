@@ -1,0 +1,14 @@
+{
+  "node": "edge",
+  "gpu": "GPU-f49c9ab9-2984-04e2-d321-6f73955e1fad",
+  "components": {
+    "runtime": {
+      "service": "song-soulx",
+      "subnet": "10.243.87.0/24",
+      "address": "10.243.87.2",
+      "business_port": 18587,
+      "control_port": 18687
+    }
+  },
+  "status": "prepared-not-registered"
+}

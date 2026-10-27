@@ -1,0 +1,9 @@
+**
+!hub_runtime/
+!hub_runtime/**
+!deploy/song-audio/worker.py
+!.source-commit
+!deploy/hub/Dockerfile.runtime
+**/__pycache__
+**/*.pyc
+**/._*

@@ -40,3 +40,18 @@ deploy/
 # midi editor
 node_modules/
 dist/
+__pycache__/
+*.pyc
+.source-commit
+.env.local
+deploy/hub/*.env
+deploy/hub/state/
+
+# Owned, source-only Hub and existing song-audio API assets.
+!deploy/
+!deploy/hub/
+!deploy/hub/**
+!deploy/song-audio/
+!deploy/song-audio/**
+deploy/hub/*.env
+deploy/hub/state/

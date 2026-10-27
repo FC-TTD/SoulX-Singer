@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
+FROM registry.ttd/ttd-hub/sdk-wheel@sha256:f8479f79ca1e5a46383f6da78930ae926b7bc7034e866cc290185121ae4ee728 AS sdk
+FROM registry.ttd/soulx-singer/native@sha256:69a376073ba8447f580372e92b0fd5e3b71adc5a341cbe2caa6691a3fe5858e8
+COPY --from=sdk --link /opt/ttd-hub-runtime /opt/ttd-hub-runtime
+COPY --link hub_runtime/native_process.py hub_runtime/__init__.py /app/hub_runtime/
+COPY --link hub_runtime/api.py hub_runtime/__main__.py /app/hub_runtime/
+COPY --link deploy/song-audio/worker.py /adapter/worker.py
+COPY --link .source-commit /opt/provider-source-commit
+ENV PYTHONPATH=/opt/ttd-hub-runtime:/app:/adapter PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TTD_WEBHOOK_URL=""
+ENTRYPOINT []
+CMD ["python","-m","hub_runtime"]
+LABEL org.opencontainers.image.source="https://github.com/FC-TTD/SoulX-Singer"

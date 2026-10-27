@@ -1,0 +1,3 @@
+# SoulX song-audio Hub adapter
+
+Canonical FC-TTD/SoulX-Singer hub branch. User authorized private machine credentials, source push and controlled takeover of the existing song-soulx GPU adapter after native acceptance/drain. Preserve original SVC checkpoint and fp16/32-step native worker; do not change precision/device split or introduce CPU/offload. Public existing upstream UI and original unrelated endpoints remain owned by their deployments. New API routes preserve current private song-adapter contracts. Track background queue context and real process completion; never restart/replay queued or unknown inference. No credentials/media/weights in Git.

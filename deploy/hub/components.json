@@ -1,0 +1,11 @@
+{
+  "project": "soulx-singer",
+  "components": {
+    "runtime": "soulx"
+  },
+  "sdk": "registry.ttd/ttd-hub/sdk-wheel@sha256:f8479f79ca1e5a46383f6da78930ae926b7bc7034e866cc290185121ae4ee728",
+  "nativeImages": {
+    "runtime": "registry.ttd/soulx-singer/native@sha256:69a376073ba8447f580372e92b0fd5e3b71adc5a341cbe2caa6691a3fe5858e8"
+  },
+  "cache": "registry.ttd/music-native/shared-cache:buildcache"
+}

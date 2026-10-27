@@ -1,0 +1,41 @@
+name: song-soulx-preview
+services:
+  svc:
+    image: song-soulx-preview:${RELEASE:?}
+    container_name: song-soulx-preview
+    restart: unless-stopped
+    init: true
+    ports: ["192.168.100.15:17908:8000"]
+    mem_limit: 12g
+    cpus: 4
+    environment:
+      AUDIO_GPU_UUID: GPU-5dda4827-a51a-2d06-53e3-1171bb3c8a60
+      NVIDIA_VISIBLE_DEVICES: GPU-5dda4827-a51a-2d06-53e3-1171bb3c8a60
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /cache
+      HF_HUB_CACHE: /cache/hub
+      TRANSFORMERS_CACHE: /cache/hub
+      NLTK_DATA: /nltk_data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [GPU-5dda4827-a51a-2d06-53e3-1171bb3c8a60]
+              capabilities: [gpu]
+    volumes:
+      - /mnt/TTD/04_应用/歌曲分析测试/02_工作文件/soulx-svc:/data
+      - /mnt/TTD-Data/soulx-singer/pretrained_models:/app/pretrained_models:ro
+      - /mnt/TTD-Data/soulx-singer/hf:/cache:ro
+      - /mnt/TTD-Data/soulx-singer/nltk_data:/nltk_data:ro
+      - /mnt/TTD/04_应用/pymss-ui-preview/jobs:/studio-inputs:ro
+    networks: [audio]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+networks:
+  audio:
+    external: true
+    name: yingmusic-audio-preview_default

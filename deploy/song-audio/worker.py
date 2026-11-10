@@ -15,12 +15,14 @@ b,mb,tw,tf=state.run_preprocess(Path(j['input']),root/'target',False)
 assert a and b,(ma,mb)
 assert np.mean(np.load(tf)>0)>=.01,'NO_VOICED_TARGET'
 assert np.mean(np.load(pf)>0)>=.01,'NO_VOICED_REFERENCE'
-ok,msg,result=state.run_svc(pw,tw,pf,tf,root,False,False,0,32,1.,42)
+ok,msg,result=state.run_svc(pw,tw,pf,tf,root,False,False,int(j.get('pitch_shift',0)),int(j.get('steps',32)),float(j.get('cfg',1.)),42)
 assert ok,msg
 raw,sr=sf.read(result,always_2d=True,dtype='float32');duration=sf.info(tw).duration
 if sr!=48000:raw=librosa.resample(raw.T,orig_sr=sr,target_sr=48000).T
 frames=round(duration*48000);difference=len(raw)-frames
 assert abs(difference)<=7200,'Generated duration differs by more than150ms; do not mix automatically'
+if j.get('strict_alignment'):
+ assert difference==0,'Generated duration is not sample-aligned; workbench version rejected'
 fixed=raw[:frames] if len(raw)>=frames else np.pad(raw,((0,frames-len(raw)),(0,0)))
 sf.write(root/'aligned.wav',fixed,48000,subtype='PCM_24')
 j.update(status='completed',message='歌声转换完成',duration=frames/48000,sample_rate=48000,frames=frames,bytes=(root/'aligned.wav').stat().st_size,alignmentTrimFrames=max(0,difference),alignmentPadFrames=max(0,-difference),peakCudaBytes=torch.cuda.max_memory_allocated())

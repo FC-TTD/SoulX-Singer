@@ -1,6 +1,6 @@
 """Private adapter over the existing pinned SoulX native image, no model reimplementation."""
 import contextvars
-import asyncio,hashlib,json,math,os,re,subprocess,sys,time,uuid
+import asyncio,hashlib,io,json,math,os,re,subprocess,sys,time,uuid
 from pathlib import Path
 import numpy as np
 import requests
@@ -40,6 +40,31 @@ async def create(asset_id:str=Form(...),filename:str=Form('song.wav'),reference:
   if not 1<=duration<=30.1:raise ValueError()
  except Exception:raise HTTPException(422,'请提供1至30秒干净的参考歌声')
  j={'_hub_actor_id':os.environ.get('HUB_RUNTIME_ACTOR_ID'),'id':jid,'status':'queued','input':str(path),'reference':str(ref),'filename':filename,'createdAt':time.time(),'message':'排队等待显卡资源'};write(folder/'job.json',j);runtime.accept_background_work();await q.put((jid,contextvars.copy_context()));return public(j)
+@app.post('/workbench/jobs',status_code=202)
+async def create_workbench(pitch_shift:int=Form(...),steps:int=Form(32),cfg:float=Form(1.0),target:UploadFile=File(...),reference:UploadFile=File(...)):
+ if runtime.status()['residency']=='unknown':raise HTTPException(503,'上次执行状态待核对，请稍后提交')
+ if not -12<=pitch_shift<=12:raise HTTPException(422,'音高变化须为−12到+12个半音')
+ if steps not in (24,32,48) or not math.isfinite(cfg) or cfg not in (.7,1.,1.3):raise HTTPException(422,'推理步数或引导强度无效')
+ target_bytes=await target.read(128*1024**2+1)
+ if not target_bytes or len(target_bytes)>128*1024**2:raise HTTPException(413,'人声音轨最多128 MB')
+ try:
+  info=sf.info(io.BytesIO(target_bytes))
+  if info.samplerate!=48000 or info.channels!=1 or not 1<=info.duration<=600:raise ValueError()
+ except Exception:raise HTTPException(422,'仅支持1至600秒、48 kHz单声道人声音轨WAV')
+ reference_bytes=await reference.read(32*1024**2+1)
+ if not reference_bytes or len(reference_bytes)>32*1024**2:raise HTTPException(413,'参考歌声最多32 MB')
+ jid=uuid.uuid4().hex;folder=DATA/jid;folder.mkdir()
+ source=folder/'target.wav';source.write_bytes(target_bytes)
+ ref=folder/'reference.audio';ref.write_bytes(reference_bytes)
+ try:
+  probe=await asyncio.create_subprocess_exec('ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',str(ref),stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
+  out,_=await probe.communicate();duration=float(out.strip())
+  if probe.returncode or not math.isfinite(duration) or not 1<=duration<=30:raise ValueError()
+ except Exception:
+  source.unlink(missing_ok=True);ref.unlink(missing_ok=True);folder.rmdir()
+  raise HTTPException(422,'请提供1至30秒干净的参考歌声')
+ j={'_hub_actor_id':os.environ.get('HUB_RUNTIME_ACTOR_ID'),'id':jid,'status':'queued','input':str(source),'reference':str(ref),'filename':'workbench.wav','pitch_shift':pitch_shift,'steps':steps,'cfg':cfg,'strict_alignment':True,'createdAt':time.time(),'message':'排队等待显卡资源'}
+ write(folder/'job.json',j);runtime.accept_background_work();await q.put((jid,contextvars.copy_context()));return public(j)
 @app.get('/jobs/{jid}')
 def state(jid:str):return public(read(jid))
 @app.get('/jobs/{jid}/audio')
